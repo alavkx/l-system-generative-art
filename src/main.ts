@@ -44,6 +44,8 @@ class LSystemApp {
     const generateButton =
       document.querySelector<HTMLButtonElement>("#generate")!;
     const clearButton = document.querySelector<HTMLButtonElement>("#clear")!;
+    const resetViewButton =
+      document.querySelector<HTMLButtonElement>("#reset-view")!;
 
     exampleSelect.addEventListener("change", () => {
       const index = parseInt(exampleSelect.value);
@@ -60,6 +62,10 @@ class LSystemApp {
 
     clearButton.addEventListener("click", () => {
       this.clear();
+    });
+
+    resetViewButton.addEventListener("click", () => {
+      this.turtle.resetView();
     });
   }
 

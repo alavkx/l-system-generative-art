@@ -115,6 +115,20 @@ button:active {
   border-radius: 8px;
   background: white;
   box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+  cursor: grab;
+  user-select: none;
+}
+
+#canvas:active {
+  cursor: grabbing;
+}
+
+.canvas-help {
+  text-align: center;
+  margin-top: 10px;
+  font-size: 0.85em;
+  color: #999;
+  font-style: italic;
 }
 
 @media (max-width: 600px) {
