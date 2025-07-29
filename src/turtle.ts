@@ -13,6 +13,8 @@ export interface Transform {
 export class TurtleRenderer {
   private canvas: HTMLCanvasElement;
   private ctx: CanvasRenderingContext2D;
+  private offscreenCanvas: HTMLCanvasElement;
+  private offscreenCtx: CanvasRenderingContext2D;
   private x!: number;
   private y!: number;
   private angle!: number;
@@ -35,6 +37,13 @@ export class TurtleRenderer {
   constructor(canvas: HTMLCanvasElement, stepSize = 10, angleStep = 90) {
     this.canvas = canvas;
     this.ctx = canvas.getContext("2d")!;
+
+    // Create offscreen canvas with same dimensions
+    this.offscreenCanvas = document.createElement("canvas");
+    this.offscreenCanvas.width = canvas.width;
+    this.offscreenCanvas.height = canvas.height;
+    this.offscreenCtx = this.offscreenCanvas.getContext("2d")!;
+
     this.stepSize = stepSize;
     this.angleStep = angleStep * (Math.PI / 180);
     this.stack = [];
@@ -139,6 +148,12 @@ export class TurtleRenderer {
 
     this.resetTransform();
     this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+    this.offscreenCtx.clearRect(
+      0,
+      0,
+      this.offscreenCanvas.width,
+      this.offscreenCanvas.height
+    );
     this.commandGenerator = null;
     this.commandsProcessed = 0;
     this.estimatedTotalCommands = 0;
@@ -146,14 +161,13 @@ export class TurtleRenderer {
   }
 
   private redraw(): void {
-    // Redrawing with generator is complex since generators can't be reset
-    // For now, just clear and log - we'd need to regenerate from source
-    console.log("Redraw requested - generator cannot be reset");
+    // Clear main canvas and redraw offscreen canvas with current transform
+    this.ctx.setTransform(1, 0, 0, 1, 0, 0);
     this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+
+    // Apply current transform and draw offscreen canvas
     this.applyTransform();
-    this.reset();
-    this.ctx.beginPath();
-    this.ctx.moveTo(this.x, this.y);
+    this.ctx.drawImage(this.offscreenCanvas, 0, 0);
   }
 
   setStepSize(size: number): void {
@@ -165,11 +179,11 @@ export class TurtleRenderer {
   }
 
   setStrokeStyle(style: string): void {
-    this.ctx.strokeStyle = style;
+    this.offscreenCtx.strokeStyle = style;
   }
 
   setLineWidth(width: number): void {
-    this.ctx.lineWidth = width;
+    this.offscreenCtx.lineWidth = width;
   }
 
   draw(
@@ -179,9 +193,20 @@ export class TurtleRenderer {
     this.commandGenerator = commandGenerator;
     this.commandsProcessed = 0;
     this.estimatedTotalCommands = estimatedLength;
-    this.applyTransform();
-    this.ctx.beginPath();
-    this.ctx.moveTo(this.x, this.y);
+
+    // Clear and initialize offscreen canvas
+    this.offscreenCtx.clearRect(
+      0,
+      0,
+      this.offscreenCanvas.width,
+      this.offscreenCanvas.height
+    );
+    this.offscreenCtx.setTransform(1, 0, 0, 1, 0, 0);
+    this.offscreenCtx.beginPath();
+    this.offscreenCtx.moveTo(this.x, this.y);
+
+    // Redraw main canvas with current transform
+    this.redraw();
     this.canvas.style.cursor = "grab";
   }
 
@@ -216,13 +241,18 @@ export class TurtleRenderer {
     }
     this.commandsProcessed = 0;
 
-    // Clear canvas without calling this.clear() to avoid recursion
+    // Clear both canvases
     this.resetTransform();
     this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+    this.offscreenCtx.clearRect(
+      0,
+      0,
+      this.offscreenCanvas.width,
+      this.offscreenCanvas.height
+    );
     this.reset();
-    this.applyTransform();
-    this.ctx.beginPath();
-    this.ctx.moveTo(this.x, this.y);
+    this.offscreenCtx.beginPath();
+    this.offscreenCtx.moveTo(this.x, this.y);
   }
 
   setAnimationSpeed(speed: number): void {
@@ -310,19 +340,23 @@ export class TurtleRenderer {
     const newX = this.x + this.stepSize * Math.cos(this.angle);
     const newY = this.y + this.stepSize * Math.sin(this.angle);
 
-    this.ctx.lineTo(newX, newY);
-    this.ctx.stroke();
-    this.ctx.beginPath();
-    this.ctx.moveTo(newX, newY);
+    // Draw to offscreen canvas
+    this.offscreenCtx.lineTo(newX, newY);
+    this.offscreenCtx.stroke();
+    this.offscreenCtx.beginPath();
+    this.offscreenCtx.moveTo(newX, newY);
 
     this.x = newX;
     this.y = newY;
+
+    // Update main canvas with current drawing
+    this.redraw();
   }
 
   private moveForward(): void {
     this.x += this.stepSize * Math.cos(this.angle);
     this.y += this.stepSize * Math.sin(this.angle);
-    this.ctx.moveTo(this.x, this.y);
+    this.offscreenCtx.moveTo(this.x, this.y);
   }
 
   private turnRight(): void {
@@ -347,7 +381,7 @@ export class TurtleRenderer {
       this.x = state.x;
       this.y = state.y;
       this.angle = state.angle;
-      this.ctx.moveTo(this.x, this.y);
+      this.offscreenCtx.moveTo(this.x, this.y);
     }
   }
 }
