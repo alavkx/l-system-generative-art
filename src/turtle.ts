@@ -23,6 +23,14 @@ export class TurtleRenderer {
   private isDragging: boolean;
   private lastMousePos: { x: number; y: number };
 
+  // Animation properties
+  private commandQueue: string[] = [];
+  private currentCommandIndex: number = 0;
+  private animationSpeed: number = 50; // milliseconds per command
+  private isAnimating: boolean = false;
+  private isPaused: boolean = false;
+  private animationTimeoutId: number | null = null;
+
   constructor(canvas: HTMLCanvasElement, stepSize = 10, angleStep = 90) {
     this.canvas = canvas;
     this.ctx = canvas.getContext("2d")!;
@@ -121,9 +129,20 @@ export class TurtleRenderer {
   }
 
   clear(): void {
+    console.log("Clearing canvas and stopping animation");
+    // Stop animation without clearing canvas to avoid recursion
+    this.isAnimating = false;
+    this.isPaused = false;
+    if (this.animationTimeoutId) {
+      clearTimeout(this.animationTimeoutId);
+      this.animationTimeoutId = null;
+    }
+
     this.resetTransform();
     this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
     this.storedDrawing = "";
+    this.commandQueue = [];
+    this.currentCommandIndex = 0;
     this.canvas.style.cursor = "grab";
   }
 
@@ -133,7 +152,13 @@ export class TurtleRenderer {
       this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
       this.applyTransform();
       this.reset();
-      this.drawInternal(this.storedDrawing);
+      this.ctx.beginPath();
+      this.ctx.moveTo(this.x, this.y);
+
+      // Redraw up to current animation position
+      for (let i = 0; i < this.currentCommandIndex; i++) {
+        this.executeCommand(this.commandQueue[i]);
+      }
     }
   }
 
@@ -155,18 +180,100 @@ export class TurtleRenderer {
 
   draw(lsystemString: string): void {
     this.storedDrawing = lsystemString;
+    this.commandQueue = Array.from(lsystemString);
+    this.currentCommandIndex = 0;
     this.applyTransform();
-    this.drawInternal(lsystemString);
+    this.ctx.beginPath();
+    this.ctx.moveTo(this.x, this.y);
     this.canvas.style.cursor = "grab";
   }
 
-  private drawInternal(lsystemString: string): void {
+  startAnimation(): void {
+    if (this.commandQueue.length === 0) return;
+    if (this.isAnimating && !this.isPaused) return;
+
+    console.log(`Starting animation with ${this.commandQueue.length} commands`);
+    this.isAnimating = true;
+    this.isPaused = false;
+    this.processNextCommand();
+  }
+
+  pauseAnimation(): void {
+    console.log("Pausing animation");
+    this.isPaused = true;
+    if (this.animationTimeoutId) {
+      clearTimeout(this.animationTimeoutId);
+      this.animationTimeoutId = null;
+    }
+  }
+
+  stopAnimation(): void {
+    console.log("Stopping animation");
+    this.isAnimating = false;
+    this.isPaused = false;
+    if (this.animationTimeoutId) {
+      clearTimeout(this.animationTimeoutId);
+      this.animationTimeoutId = null;
+    }
+    this.currentCommandIndex = 0;
+
+    // Clear canvas without calling this.clear() to avoid recursion
+    this.resetTransform();
+    this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+    this.reset();
+    this.applyTransform();
     this.ctx.beginPath();
     this.ctx.moveTo(this.x, this.y);
+  }
 
-    for (const command of lsystemString) {
-      this.executeCommand(command);
+  setAnimationSpeed(speed: number): void {
+    this.animationSpeed = Math.max(1, Math.min(100, speed));
+  }
+
+  getAnimationState(): {
+    isAnimating: boolean;
+    isPaused: boolean;
+    progress: number;
+  } {
+    const progress =
+      this.commandQueue.length > 0
+        ? this.currentCommandIndex / this.commandQueue.length
+        : 0;
+    return {
+      isAnimating: this.isAnimating,
+      isPaused: this.isPaused,
+      progress,
+    };
+  }
+
+  private processNextCommand(): void {
+    if (!this.isAnimating || this.isPaused) return;
+
+    if (this.currentCommandIndex >= this.commandQueue.length) {
+      console.log("Animation completed");
+      this.isAnimating = false;
+      return;
     }
+
+    // Log progress every 50 commands to avoid spam
+    if (this.currentCommandIndex % 50 === 0) {
+      console.log(
+        `Animation progress: ${this.currentCommandIndex}/${
+          this.commandQueue.length
+        } (${Math.round(
+          (this.currentCommandIndex / this.commandQueue.length) * 100
+        )}%)`
+      );
+    }
+
+    const command = this.commandQueue[this.currentCommandIndex];
+    this.executeCommand(command);
+    this.currentCommandIndex++;
+
+    // Use setTimeout for the next command to allow animation control
+    this.animationTimeoutId = window.setTimeout(() => {
+      this.processNextCommand();
+    }, this.animationSpeed);
   }
 
   private executeCommand(command: string): void {

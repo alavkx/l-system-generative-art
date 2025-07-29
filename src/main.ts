@@ -46,6 +46,11 @@ class LSystemApp {
     const clearButton = document.querySelector<HTMLButtonElement>("#clear")!;
     const resetViewButton =
       document.querySelector<HTMLButtonElement>("#reset-view")!;
+    const playPauseButton =
+      document.querySelector<HTMLButtonElement>("#play-pause")!;
+    const stopButton = document.querySelector<HTMLButtonElement>("#stop")!;
+    const speedSlider = document.querySelector<HTMLInputElement>("#speed")!;
+    const speedValue = document.querySelector<HTMLSpanElement>("#speed-value")!;
 
     exampleSelect.addEventListener("change", () => {
       const index = parseInt(exampleSelect.value);
@@ -67,6 +72,25 @@ class LSystemApp {
     resetViewButton.addEventListener("click", () => {
       this.turtle.resetView();
     });
+
+    playPauseButton.addEventListener("click", () => {
+      this.togglePlayPause();
+    });
+
+    stopButton.addEventListener("click", () => {
+      this.stopAnimation();
+    });
+
+    speedSlider.addEventListener("input", () => {
+      const speed = parseInt(speedSlider.value);
+      this.turtle.setAnimationSpeed(speed);
+      speedValue.textContent = `${speed}ms`;
+    });
+
+    // Update play/pause button text based on animation state
+    setInterval(() => {
+      this.updateAnimationUI();
+    }, 100);
   }
 
   private loadExample(example: LSystemExample): void {
@@ -98,6 +122,8 @@ class LSystemApp {
       document.querySelector<HTMLInputElement>("#iterations")!;
     const iterations = parseInt(iterationsSlider.value);
 
+    console.log(`Generating L-system with ${iterations} iterations`);
+
     this.lsystem.reset();
     this.lsystem.iterateN(iterations);
 
@@ -114,6 +140,7 @@ class LSystemApp {
     }
 
     this.turtle.draw(generatedString);
+    this.turtle.startAnimation();
     this.updateGenerationInfo();
   }
 
@@ -129,6 +156,33 @@ class LSystemApp {
     const generation = this.lsystem.getGeneration();
     const length = this.lsystem.getCurrentGeneration().length;
     info.textContent = `Generation: ${generation}, Length: ${length}`;
+  }
+
+  private togglePlayPause(): void {
+    console.log("Toggle play/pause clicked");
+    const state = this.turtle.getAnimationState();
+    if (state.isAnimating && !state.isPaused) {
+      this.turtle.pauseAnimation();
+    } else {
+      this.turtle.startAnimation();
+    }
+  }
+
+  private stopAnimation(): void {
+    console.log("Stop button clicked");
+    this.turtle.stopAnimation();
+  }
+
+  private updateAnimationUI(): void {
+    const playPauseButton =
+      document.querySelector<HTMLButtonElement>("#play-pause")!;
+    const state = this.turtle.getAnimationState();
+
+    if (state.isAnimating && !state.isPaused) {
+      playPauseButton.textContent = "Pause";
+    } else {
+      playPauseButton.textContent = "Play";
+    }
   }
 }
 
