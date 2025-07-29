@@ -37,10 +37,6 @@ class LSystemApp {
   private setupEventListeners(): void {
     const exampleSelect =
       document.querySelector<HTMLSelectElement>("#examples")!;
-    const iterationsSlider =
-      document.querySelector<HTMLInputElement>("#iterations")!;
-    const iterationsValue =
-      document.querySelector<HTMLSpanElement>("#iterations-value")!;
     const generateButton =
       document.querySelector<HTMLButtonElement>("#generate")!;
     const clearButton = document.querySelector<HTMLButtonElement>("#clear")!;
@@ -55,10 +51,6 @@ class LSystemApp {
     exampleSelect.addEventListener("change", () => {
       const index = parseInt(exampleSelect.value);
       this.loadExample(lsystemExamples[index]);
-    });
-
-    iterationsSlider.addEventListener("input", () => {
-      iterationsValue.textContent = iterationsSlider.value;
     });
 
     generateButton.addEventListener("click", () => {
@@ -97,16 +89,9 @@ class LSystemApp {
     this.currentExample = example;
     this.lsystem = new LSystem(example.axiom, example.rules);
 
-    const iterationsSlider =
-      document.querySelector<HTMLInputElement>("#iterations")!;
-    const iterationsValue =
-      document.querySelector<HTMLSpanElement>("#iterations-value")!;
     const description =
       document.querySelector<HTMLParagraphElement>("#description")!;
 
-    iterationsSlider.value = example.iterations.toString();
-    iterationsSlider.max = Math.min(example.iterations + 8, 20).toString();
-    iterationsValue.textContent = example.iterations.toString();
     description.textContent = example.description;
 
     this.turtle.setStepSize(example.stepSize);
@@ -118,32 +103,22 @@ class LSystemApp {
   }
 
   private generate(): void {
-    const iterationsSlider =
-      document.querySelector<HTMLInputElement>("#iterations")!;
-    const iterations = parseInt(iterationsSlider.value);
+    const iterations = Math.max(this.currentExample.iterations + 5, 15);
 
-    console.log(`Generating L-system with ${iterations} iterations`);
+    console.log(
+      `Generating L-system with ${iterations} iterations (indefinite mode)`
+    );
 
     this.turtle.clear();
     this.turtle.reset();
 
-    // Get estimated length for progress tracking
     const estimatedLength = this.lsystem.getEstimatedLength(iterations);
 
-    if (estimatedLength > 1000000) {
-      const proceed = confirm(
-        `This will generate approximately ${estimatedLength.toLocaleString()} commands. This might take a while to animate. Continue?`
-      );
-      if (!proceed) return;
-    }
-
-    // Create generator instead of generating entire string
     const commandGenerator = this.lsystem.generateCommands(iterations);
 
     this.turtle.draw(commandGenerator, estimatedLength);
     this.turtle.startAnimation();
 
-    // Update info with estimated values
     this.updateGenerationInfo(iterations, estimatedLength);
   }
 
