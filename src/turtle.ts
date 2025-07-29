@@ -24,8 +24,9 @@ export class TurtleRenderer {
   private lastMousePos: { x: number; y: number };
 
   // Animation properties
-  private commandQueue: string[] = [];
-  private currentCommandIndex: number = 0;
+  private commandGenerator: Generator<string, void, unknown> | null = null;
+  private commandsProcessed: number = 0;
+  private estimatedTotalCommands: number = 0;
   private animationSpeed: number = 50; // milliseconds per command
   private isAnimating: boolean = false;
   private isPaused: boolean = false;
@@ -114,8 +115,6 @@ export class TurtleRenderer {
     this.ctx.setTransform(1, 0, 0, 1, 0, 0);
   }
 
-  private storedDrawing: string = "";
-
   reset(): void {
     this.x = this.canvas.width / 2;
     this.y = this.canvas.height - 50;
@@ -140,26 +139,22 @@ export class TurtleRenderer {
 
     this.resetTransform();
     this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
-    this.storedDrawing = "";
-    this.commandQueue = [];
-    this.currentCommandIndex = 0;
+    this.commandGenerator = null;
+    this.commandsProcessed = 0;
+    this.estimatedTotalCommands = 0;
     this.canvas.style.cursor = "grab";
   }
 
   private redraw(): void {
-    if (this.storedDrawing) {
-      this.resetTransform();
-      this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
-      this.applyTransform();
-      this.reset();
-      this.ctx.beginPath();
-      this.ctx.moveTo(this.x, this.y);
-
-      // Redraw up to current animation position
-      for (let i = 0; i < this.currentCommandIndex; i++) {
-        this.executeCommand(this.commandQueue[i]);
-      }
-    }
+    // Redrawing with generator is complex since generators can't be reset
+    // For now, just clear and log - we'd need to regenerate from source
+    console.log("Redraw requested - generator cannot be reset");
+    this.resetTransform();
+    this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+    this.applyTransform();
+    this.reset();
+    this.ctx.beginPath();
+    this.ctx.moveTo(this.x, this.y);
   }
 
   setStepSize(size: number): void {
@@ -178,10 +173,13 @@ export class TurtleRenderer {
     this.ctx.lineWidth = width;
   }
 
-  draw(lsystemString: string): void {
-    this.storedDrawing = lsystemString;
-    this.commandQueue = Array.from(lsystemString);
-    this.currentCommandIndex = 0;
+  draw(
+    commandGenerator: Generator<string, void, unknown>,
+    estimatedLength: number
+  ): void {
+    this.commandGenerator = commandGenerator;
+    this.commandsProcessed = 0;
+    this.estimatedTotalCommands = estimatedLength;
     this.applyTransform();
     this.ctx.beginPath();
     this.ctx.moveTo(this.x, this.y);
@@ -189,10 +187,12 @@ export class TurtleRenderer {
   }
 
   startAnimation(): void {
-    if (this.commandQueue.length === 0) return;
+    if (!this.commandGenerator) return;
     if (this.isAnimating && !this.isPaused) return;
 
-    console.log(`Starting animation with ${this.commandQueue.length} commands`);
+    console.log(
+      `Starting animation with ${this.estimatedTotalCommands} commands`
+    );
     this.isAnimating = true;
     this.isPaused = false;
     this.processNextCommand();
@@ -215,7 +215,7 @@ export class TurtleRenderer {
       clearTimeout(this.animationTimeoutId);
       this.animationTimeoutId = null;
     }
-    this.currentCommandIndex = 0;
+    this.commandsProcessed = 0;
 
     // Clear canvas without calling this.clear() to avoid recursion
     this.resetTransform();
@@ -236,8 +236,8 @@ export class TurtleRenderer {
     progress: number;
   } {
     const progress =
-      this.commandQueue.length > 0
-        ? this.currentCommandIndex / this.commandQueue.length
+      this.estimatedTotalCommands > 0
+        ? this.commandsProcessed / this.estimatedTotalCommands
         : 0;
     return {
       isAnimating: this.isAnimating,
@@ -249,26 +249,33 @@ export class TurtleRenderer {
   private processNextCommand(): void {
     if (!this.isAnimating || this.isPaused) return;
 
-    if (this.currentCommandIndex >= this.commandQueue.length) {
+    if (!this.commandGenerator) {
+      console.log("No command generator available.");
+      this.isAnimating = false;
+      return;
+    }
+
+    const nextCommand = this.commandGenerator.next();
+
+    if (nextCommand.done) {
       console.log("Animation completed");
       this.isAnimating = false;
       return;
     }
 
     // Log progress every 50 commands to avoid spam
-    if (this.currentCommandIndex % 50 === 0) {
+    if (this.commandsProcessed % 50 === 0) {
       console.log(
-        `Animation progress: ${this.currentCommandIndex}/${
-          this.commandQueue.length
+        `Animation progress: ${this.commandsProcessed}/${
+          this.estimatedTotalCommands
         } (${Math.round(
-          (this.currentCommandIndex / this.commandQueue.length) * 100
+          (this.commandsProcessed / this.estimatedTotalCommands) * 100
         )}%)`
       );
     }
 
-    const command = this.commandQueue[this.currentCommandIndex];
-    this.executeCommand(command);
-    this.currentCommandIndex++;
+    this.executeCommand(nextCommand.value);
+    this.commandsProcessed++;
 
     // Use setTimeout for the next command to allow animation control
     this.animationTimeoutId = window.setTimeout(() => {

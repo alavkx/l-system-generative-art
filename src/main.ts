@@ -105,7 +105,7 @@ class LSystemApp {
       document.querySelector<HTMLParagraphElement>("#description")!;
 
     iterationsSlider.value = example.iterations.toString();
-    iterationsSlider.max = Math.min(example.iterations + 3, 12).toString();
+    iterationsSlider.max = Math.min(example.iterations + 8, 20).toString();
     iterationsValue.textContent = example.iterations.toString();
     description.textContent = example.description;
 
@@ -124,24 +124,27 @@ class LSystemApp {
 
     console.log(`Generating L-system with ${iterations} iterations`);
 
-    this.lsystem.reset();
-    this.lsystem.iterateN(iterations);
-
     this.turtle.clear();
     this.turtle.reset();
 
-    const generatedString = this.lsystem.getCurrentGeneration();
+    // Get estimated length for progress tracking
+    const estimatedLength = this.lsystem.getEstimatedLength(iterations);
 
-    if (generatedString.length > 10000) {
+    if (estimatedLength > 1000000) {
       const proceed = confirm(
-        `This will generate ${generatedString.length} commands. This might be slow. Continue?`
+        `This will generate approximately ${estimatedLength.toLocaleString()} commands. This might take a while to animate. Continue?`
       );
       if (!proceed) return;
     }
 
-    this.turtle.draw(generatedString);
+    // Create generator instead of generating entire string
+    const commandGenerator = this.lsystem.generateCommands(iterations);
+
+    this.turtle.draw(commandGenerator, estimatedLength);
     this.turtle.startAnimation();
-    this.updateGenerationInfo();
+
+    // Update info with estimated values
+    this.updateGenerationInfo(iterations, estimatedLength);
   }
 
   private clear(): void {
@@ -150,12 +153,17 @@ class LSystemApp {
     this.updateGenerationInfo();
   }
 
-  private updateGenerationInfo(): void {
+  private updateGenerationInfo(generation?: number, length?: number): void {
     const info =
       document.querySelector<HTMLParagraphElement>("#generation-info")!;
-    const generation = this.lsystem.getGeneration();
-    const length = this.lsystem.getCurrentGeneration().length;
-    info.textContent = `Generation: ${generation}, Length: ${length}`;
+
+    if (generation !== undefined && length !== undefined) {
+      info.textContent = `Generation: ${generation}, Estimated Length: ${length.toLocaleString()}`;
+    } else {
+      const currentGeneration = this.lsystem.getGeneration();
+      const currentLength = this.lsystem.getCurrentGeneration().length;
+      info.textContent = `Generation: ${currentGeneration}, Length: ${currentLength}`;
+    }
   }
 
   private togglePlayPause(): void {
