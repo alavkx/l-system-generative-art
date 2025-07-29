@@ -149,7 +149,6 @@ export class TurtleRenderer {
     // Redrawing with generator is complex since generators can't be reset
     // For now, just clear and log - we'd need to regenerate from source
     console.log("Redraw requested - generator cannot be reset");
-    this.resetTransform();
     this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
     this.applyTransform();
     this.reset();
